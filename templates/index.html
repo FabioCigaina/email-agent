@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0d0f12;
+    --surface:  #151820;
+    --border:   #252a35;
+    --text:     #c8cdd8;
+    --muted:    #5a6070;
+    --green:    #3dffa0;
+    --red:      #ff4f5e;
+    --yellow:   #ffcc00;
+    --blue:     #5b9cf6;
+    --radius:   6px;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: #fff;
+  }
+  header .account {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background .3s;
+  }
+  .status-dot.running { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  /* ── Layout ── */
+  main {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 0;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 57px);
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Controls */
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  select, input[type="number"], input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  select:focus, input:focus { border-color: var(--blue); }
+  .field { margin-bottom: 14px; }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    padding: 9px 14px;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-start { background: var(--green); color: #0d0f12; margin-bottom: 8px; }
+  .btn-stop  { background: transparent; color: var(--red); border: 1px solid var(--red); margin-bottom: 8px; }
+  /* ── Log panel ── */
+  .log-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .log-toolbar {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .log-toolbar span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .clear-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .clear-btn:hover { border-color: var(--text); color: var(--text); }
+
+  #log-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    list-style: none;
+    scroll-behavior: smooth;
+  }
+  #log-list::-webkit-scrollbar { width: 6px; }
+  #log-list::-webkit-scrollbar-track { background: transparent; }
+  #log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .log-entry {
+    display: grid;
+    grid-template-columns: 68px 14px 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 9px 22px;
+    border-bottom: 1px solid #1a1e26;
+    animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform:none; } }
+  .log-entry:hover { background: #181c24; }
+
+  .log-ts {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding-top: 1px;
+  }
+  .log-icon { font-size: 12px; padding-top: 1px; }
+  .log-body { display: flex; flex-direction: column; gap: 3px; }
+  .log-msg { font-size: 13px; line-height: 1.5; }
+  .log-tid {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* level colours */
+  .level-ok    .log-msg { color: var(--green); }
+  .level-error .log-msg { color: var(--red); }
+  .level-warn  .log-msg { color: var(--yellow); }
+  .level-info  .log-msg { color: var(--text); }
+
+  .log-msg {
+    cursor: default;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .log-msg.truncated {
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .log-msg.truncated:hover { opacity: .85; }
+  .expand-hint {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .expand-hint:hover { color: var(--text); }
+
+  .level-ok    .log-icon::before { content: "✓"; color: var(--green); }
+  .level-error .log-icon::before { content: "✗"; color: var(--red); }
+  .level-warn  .log-icon::before { content: "⚠"; color: var(--yellow); }
+  .level-info  .log-icon::before { content: "·"; color: var(--muted); }
+
+  /* empty state */
+  .empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  /* toast */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .25s, transform .25s;
+    pointer-events: none;
+    z-index: 999;
+  }
+  #toast.show { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="status-dot" id="status-dot"></div>
+  <h1>EMAIL AGENT</h1>
+  <span class="account">{{ user_email }}</span>
+</header>
+
+<main>
+  <!-- ── Sidebar ── -->
+  <aside>
+    <div>
+      <p class="section-label">Automatic loop</p>
+
+      <div class="field">
+        <label>Agent</label>
+        <select id="sel-agent">
+          {% for a in agents %}
+          <option value="{{ a }}" {% if a == 'rag' %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Period (seconds)</label>
+        <input type="number" id="inp-period" value="10" min="5" max="3600">
+      </div>
+
+      <div class="field">
+        <label>Max messages per loop</label>
+        <input type="number" id="inp-maxmsgs" value="5" min="1" max="50">
+      </div>
+
+      <button class="btn btn-start" id="btn-start" onclick="startLoop()">▶ START LOOP</button>
+      <button class="btn btn-stop"  id="btn-stop"  onclick="stopLoop()" disabled>■ STOP LOOP</button>
+    </div>
+
+
+  </aside>
+
+  <!-- ── Log panel ── -->
+  <div class="log-panel">
+    <div class="log-toolbar">
+      <span id="log-count">0 events</span>
+      <span id="loop-status-text">● inactive</span>
+      <button class="clear-btn" onclick="clearLog()">Cancel log</button>
+    </div>
+    <ul id="log-list">
+      <li class="empty-state">No event yet. Start the loop to get the agent working.</li>
+    </ul>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  let seenCount  = 0;
+  let isRunning  = false;
+  let pollTimer  = null;
+  let localLogs  = [];
+  let displayedCount = 0;  // separate counter for UI display after clears
+
+  // ── API helpers ────────────────────────────────────────────────────────────
+  async function post(url, body = {}) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return r.json();
+  }
+
+  async function get(url) {
+    const r = await fetch(url);
+    return r.json();
+  }
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  async function startLoop() {
+    const res = await post("/api/start", {
+      agent:    document.getElementById("sel-agent").value,
+      period:   parseInt(document.getElementById("inp-period").value),
+      max_msgs: parseInt(document.getElementById("inp-maxmsgs").value),
+    });
+    toast(res.ok ? "Loop started" : res.msg, res.ok ? "ok" : "error");
+    fetchStatus();
+  }
+
+  async function stopLoop() {
+    await post("/api/stop");
+    toast("Stop sent - waiting for end of the loop...", "warn");
+  }
+
+// ── Status polling ─────────────────────────────────────────────────────────
+  async function fetchStatus() {
+    const s = await get("/api/status");
+    setRunning(s.running);
+  }
+
+  function setRunning(running) {
+    isRunning = running;
+    document.getElementById("status-dot").className = "status-dot" + (running ? " running" : "");
+    document.getElementById("loop-status-text").textContent = running ? "● executing" : "● inactive";
+    document.getElementById("loop-status-text").style.color = running ? "var(--green)" : "var(--muted)";
+    document.getElementById("btn-start").disabled = running;
+    document.getElementById("btn-stop").disabled  = !running;
+  }
+
+  // ── Log polling ────────────────────────────────────────────────────────────
+  async function fetchLogs() {
+    const data = await get(`/api/logs?since=${seenCount}`);
+    if (data.logs && data.logs.length > 0) {
+      const list   = document.getElementById("log-list");
+      const wasEmpty = list.querySelector(".empty-state");
+      if (wasEmpty) list.innerHTML = "";
+
+      data.logs.forEach(entry => {
+        localLogs.push(entry);
+        displayedCount++;
+        const li = buildLogEntry(entry);
+        list.appendChild(li);
+      });
+
+      seenCount = data.total;
+      document.getElementById("log-count").textContent = `${displayedCount} events`;
+
+      // autoscroll se l'utente è vicino al fondo
+      if (list.scrollHeight - list.scrollTop - list.clientHeight < 120) {
+        list.scrollTop = list.scrollHeight;
+      }
+    }
+  }
+
+  const TRUNC_LEN = 120;
+
+  function buildLogEntry(entry) {
+    const li = document.createElement("li");
+    li.className = `log-entry level-${entry.level}`;
+
+    const full = escHtml(entry.message);
+    const needsTrunc = entry.message.length > TRUNC_LEN;
+    const preview = needsTrunc ? escHtml(entry.message.slice(0, TRUNC_LEN)) + "…" : full;
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "log-body";
+
+    const msgEl = document.createElement("span");
+    msgEl.className = "log-msg" + (needsTrunc ? " truncated" : "");
+    msgEl.innerHTML = preview;
+
+    let hintEl = null;
+    if (needsTrunc) {
+      hintEl = document.createElement("span");
+      hintEl.className = "expand-hint";
+      hintEl.textContent = "▸ expand";
+
+      let expanded = false;
+      const toggle = () => {
+        expanded = !expanded;
+        msgEl.innerHTML = expanded ? full : preview;
+        msgEl.classList.toggle("truncated", !expanded);
+        hintEl.textContent = expanded ? "▴ reduce" : "▸ expand";
+      };
+      msgEl.addEventListener("click", toggle);
+      hintEl.addEventListener("click", toggle);
+    }
+
+    bodyEl.appendChild(msgEl);
+    if (hintEl) bodyEl.appendChild(hintEl);
+    if (entry.thread_id) {
+      const tid = document.createElement("span");
+      tid.className = "log-tid";
+      tid.textContent = `thread: ${entry.thread_id}`;
+      bodyEl.appendChild(tid);
+    }
+
+    li.innerHTML = `<span class="log-ts">${entry.ts}</span><span class="log-icon"></span>`;
+    li.appendChild(bodyEl);
+    return li;
+  }
+
+  function clearLog() {
+    localLogs = [];
+    displayedCount = 0;
+    // seenCount rimane invariato: il prossimo poll prenderà solo i nuovi log
+    document.getElementById("log-count").textContent = "0 events";
+    document.getElementById("log-list").innerHTML =
+      '<li class="empty-state">Log canceled locally.</li>';
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function toast(msg, level = "info") {
+    const el = document.getElementById("toast");
+    const colors = { ok: "var(--green)", error: "var(--red)", warn: "var(--yellow)", info: "var(--blue)" };
+    el.textContent = msg;
+    el.style.borderColor = colors[level] || colors.info;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  fetchStatus();
+  fetchLogs();
+  setInterval(fetchStatus, 4000);
+  setInterval(fetchLogs,   2000);
+</script>
+</body>
+</html>

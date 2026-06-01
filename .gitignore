@@ -1,0 +1,8 @@
+*.json
+*.env
+*.faiss
+*.pkl
+*.pyc
+*.txt
+*.pyc
+.vscode/
